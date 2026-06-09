@@ -1,6 +1,5 @@
 // src/navigation/AppNavigator.js
 import React from 'react';
-import MinhasReservasScreen from '../screens/MinhasReservasScreen';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ActivityIndicator, View } from 'react-native';
@@ -8,13 +7,15 @@ import { useAuth } from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
 import CadastroScreen from '../screens/CadastroScreen';
 import HomeScreen from '../screens/HomeScreen';
-import BuscarScreen from '../screens/BuscarScreen'; // Importa a tela nova
+import BuscarScreen from '../screens/BuscarScreen';
+import MinhasReservasScreen from '../screens/MinhasReservasScreen';
 import TermosScreen from '../screens/TermosScreen';
 import PagamentoScreen from '../screens/PagamentoScreen';
+import TermosAcademiaScreen from '../screens/TermosAcademiaScreen';
+import PainelAcademiaScreen from '../screens/PainelAcademiaScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
-
 
 const FluxoLogadoTabs = () => {
   return (
@@ -30,7 +31,7 @@ const FluxoLogadoTabs = () => {
     >
       <Tab.Screen name="Início" component={HomeScreen} />
       <Tab.Screen name="Buscar Treinos" component={BuscarScreen} />
-      <Tab.Screen name="Minhas Reservas" component={MinhasReservasScreen} /> 
+      <Tab.Screen name="Minhas Reservas" component={MinhasReservasScreen} />
     </Tab.Navigator>
   );
 };
@@ -49,14 +50,22 @@ const AppNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {usuario ? (
-        <>
-          {/* As abas inferiores principais */}
-          <Stack.Screen name="Dashboard" component={FluxoLogadoTabs} />
-          
-          {/* Telas auxiliares que abrem "por cima" das abas */}
-          <Stack.Screen name="Termos" component={TermosScreen} />
-          <Stack.Screen name="Pagamento" component={PagamentoScreen} />
-        </>
+        usuario.tipo === 'equipe' ? (
+          <>
+            {/* SÓ MOSTRA OS TERMOS SE AINDA NÃO ESTIVER HOMOLOGADO */}
+            {!usuario.isHomologado && (
+              <Stack.Screen name="TermosAcademia" component={TermosAcademiaScreen} />
+            )}
+            {/* O PAINEL FICA SEMPRE DISPONÍVEL APÓS A HOMOLOGAÇÃO */}
+            <Stack.Screen name="DashboardAcademia" component={PainelAcademiaScreen} />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="Dashboard" component={FluxoLogadoTabs} />
+            <Stack.Screen name="Termos" component={TermosScreen} />
+            <Stack.Screen name="Pagamento" component={PagamentoScreen} />
+          </>
+        )
       ) : (
         <>
           <Stack.Screen name="Login" component={LoginScreen} />
