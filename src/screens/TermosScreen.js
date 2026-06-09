@@ -1,9 +1,11 @@
 // src/screens/TermosScreen.js
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { useAuth } from '../context/AuthContext'; // 1. IMPORTA O CONTEXTO
 import db from '../database/database';
 
 const TermosScreen = ({ navigation }) => {
+  const { usuario } = useAuth(); 
   const [aceito, setAceito] = useState(false);
 
   const handleAceitar = async () => {
@@ -13,10 +15,13 @@ const TermosScreen = ({ navigation }) => {
     }
 
     try {
-      // Atualiza no banco de dados que o atleta (ID 1 do nosso mock) aceitou os termos
-      await db.runAsync("UPDATE atletas SET termos_aceitos = 1, data_aceite = ? WHERE id = 1;", [new Date().toISOString()]);
-      Alert.alert('Sucesso', 'Termos aceitos! Você já pode realizar suas reservas.');
-      navigation.goBack(); // Volta para a tela de busca
+      await db.runAsync(
+        "UPDATE atletas SET termos_aceitos = 1, data_aceite = ? WHERE id = ?;", 
+        [new Date().toISOString(), usuario.idEspecifico]
+      );
+      
+      Alert.alert('Sucesso 🎉', 'Termos aceitos! Você já pode realizar suas reservas.');
+      navigation.goBack(); 
     } catch (error) {
       console.error(error);
       Alert.alert('Erro', 'Não foi possível registrar o aceite.');
