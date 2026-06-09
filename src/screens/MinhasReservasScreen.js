@@ -12,17 +12,13 @@ const MinhasReservasScreen = () => {
     try {
       setLoading(true);
       
-      // 1. Busca todas as reservas pendentes para validar o tempo de 5 minutos
       const pendentes = await db.getAllAsync("SELECT * FROM reservas WHERE status = 'pendente_pagamento';");
       const agora = new Date();
 
       for (const res of pendentes) {
         const dataCriacao = new Date(res.data_reserva);
-        
-        // Se a data for inválida (reservas antigas feitas antes do formato completo), 
-        // ou se o tempo passou de 5 minutos, cancelamos imediatamente.
+       
         if (isNaN(dataCriacao.getTime())) {
-          // Trata registro antigo/antigo formato: cancela direto
           await db.runAsync("UPDATE reservas SET status = 'cancelada_expirada' WHERE id = ?;", [res.id]);
           await db.runAsync("UPDATE treinamentos SET vagas_disponiveis = vagas_disponiveis + 1 WHERE id = ?;", [res.treinamento_id]);
           console.log(`[BD] Reserva antiga ${res.id} limpa e cancelada por formato incompatível.`);
@@ -37,7 +33,6 @@ const MinhasReservasScreen = () => {
         }
       }
 
-      // 2. Busca a lista atualizada com os detalhes do treino e da academia para exibir na tela
       const queryGeral = `
         SELECT r.id as reserva_id, r.status, r.data_reserva, t.modalidade, t.horario, t.data as data_treino, a.nome as academia_nome
         FROM reservas r
@@ -59,22 +54,7 @@ const MinhasReservasScreen = () => {
   }, []);
 
   const handleCheckoutCarrinho = async (reservaId) => {
-    try {
-      setLoading(true);
-      
-      const resultadoAPI = await simularPagamentoRemoto(reservaId, 30.00);
-      console.log('[AXIOS] Resposta recebida com sucesso da API:', resultadoAPI);
-
-      await db.runAsync("UPDATE reservas SET status = 'pago_confirmado' WHERE id = ?;", [reservaId]);
-      
-      Alert.alert('Pagamento Aprovado! 💳', 'Sua vaga está garantida no dojang. O Axios processou seu carrinho com sucesso.');
-      checarEFiltrarReservas(); // Atualiza a tela
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Erro no Gateway', 'O Axios não conseguiu se comunicar com o servidor de pagamento.');
-    } finally {
-      setLoading(false);
-    }
+    navigation.navigate('Pagamento', { reservaId: reservaId });
   };
 
   const getStatusEstilo = (status) => {

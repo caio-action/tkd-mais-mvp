@@ -9,12 +9,13 @@ import LoginScreen from '../screens/LoginScreen';
 import CadastroScreen from '../screens/CadastroScreen';
 import HomeScreen from '../screens/HomeScreen';
 import BuscarScreen from '../screens/BuscarScreen'; // Importa a tela nova
+import TermosScreen from '../screens/TermosScreen';
+import PagamentoScreen from '../screens/PagamentoScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Menu inferior para quem já está autenticado no TKD+MAIS
-// Menu inferior para quem já está autenticado no TKD+MAIS
+
 const FluxoLogadoTabs = () => {
   return (
     <Tab.Navigator 
@@ -48,8 +49,14 @@ const AppNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {usuario ? (
-        // Se logado, renderiza o menu de abas inferiores
-        <Stack.Screen name="Dashboard" component={FluxoLogadoTabs} />
+        <>
+          {/* As abas inferiores principais */}
+          <Stack.Screen name="Dashboard" component={FluxoLogadoTabs} />
+          
+          {/* Telas auxiliares que abrem "por cima" das abas */}
+          <Stack.Screen name="Termos" component={TermosScreen} />
+          <Stack.Screen name="Pagamento" component={PagamentoScreen} />
+        </>
       ) : (
         <>
           <Stack.Screen name="Login" component={LoginScreen} />

@@ -3,12 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import db from '../database/database';
 
-const BuscarScreen = () => {
+const BuscarScreen = ({ navigation }) => {
   const [treinos, setTreinos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalidadeFiltro, setModalidadeFiltro] = useState('Todos');
 
-  // Categorias de filtros exigidas pelo escopo técnico
   const filtros = ['Todos', 'Kyorugi', 'Poomsae', 'Freestyle'];
 
   const carregarTreinos = async (modalidade) => {
@@ -43,7 +42,26 @@ const BuscarScreen = () => {
     carregarTreinos(modalidadeFiltro);
   }, [modalidadeFiltro]);
 
-  const handleReservar = (idTreino, modalidade, academia) => {
+  const handleReservar = async (idTreino, modalidade, academia) => {
+    try {
+      const atleta = await db.getFirstAsync('SELECT termos_aceitos FROM atletas WHERE id = 1');
+      
+      if (!atleta || atleta.termos_aceitos === 0) {
+        Alert.alert(
+          'Termos Pendentes', 
+          'Antes de realizar sua primeira reserva, é obrigatório ler e aceitar os termos de participação.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Ler Termos', onPress: () => navigation.navigate('Termos') } // Vai pra tela de Termos
+          ]
+        );
+        return; 
+      }
+    } catch (error) {
+      console.error('Erro ao checar termos:', error);
+      return;
+    }
+
     Alert.alert(
       'Confirmar Reserva',
       `Deseja reservar sua vaga para o treino de ${modalidade} na academia ${academia}?`,
@@ -56,10 +74,8 @@ const BuscarScreen = () => {
 
  const processarReservaLocal = async (idTreino) => {
     try {
-      // 1. Deduz uma vaga temporariamente do treinamento selecionado no SQLite
       await db.runAsync('UPDATE treinamentos SET vagas_disponiveis = vagas_disponiveis - 1 WHERE id = ?', [idTreino]);
       
-      // 2. Registra a linha na tabela de reservas com status PENDENTE e o TIMESTAMP completo atual
       await db.runAsync(
         'INSERT INTO reservas (atleta_id, treinamento_id, status, data_reserva) VALUES (?, ?, ?, ?)',
         [1, idTreino, 'pendente_pagamento', new Date().toISOString()] // Armazena data e hora exatas
