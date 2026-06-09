@@ -15,15 +15,15 @@ const HomeScreen = ({ navigation }) => {
       setLoading(true);
       
       const query = `
-        SELECT r.id as reserva_id, t.modalidade, t.data as data_treino, t.horario, t.duracao_min, a.nome as academia_nome, a.endereco as academia_endereco
+        SELECT r.id as reserva_id, t.modalidade, t.data as data_treino, t.horario, t.duracao_min, t.endereco_treino, a.nome as academia_nome, a.endereco as academia_endereco_base
         FROM reservas r
         JOIN treinamentos t ON r.treinamento_id = t.id
         JOIN academias a     ON t.academia_id = a.id
-        WHERE r.status = 'pago_confirmado'
+        WHERE r.status = 'pago_confirmado' AND r.atleta_id = ?
         ORDER BY t.data ASC, t.horario ASC;
       `;
       
-      const resultados = await db.getAllAsync(query);
+      const resultados = await db.getAllAsync(query, [usuario.idEspecifico]);
       setTreinosConfirmados(resultados);
     } catch (error) {
       console.error('Erro ao carregar a home do TKD+MAIS:', error);
@@ -48,7 +48,9 @@ const HomeScreen = ({ navigation }) => {
       </View>
       
       <Text style={styles.academiaText}>🏟️ {item.academia_nome}</Text>
-      <Text style={styles.enderecoText}>📍 {item.academia_endereco}</Text>
+      
+      {/* CORREÇÃO: Mostra o endereço customizado do treino ou o endereço base da academia */}
+      <Text style={styles.enderecoText}>📍 {item.endereco_treino || item.academia_endereco_base}</Text>
       
       <View style={styles.timeRow}>
         <Text style={styles.dateTimeText}>📅 {item.data_treino} às {item.horario}</Text>

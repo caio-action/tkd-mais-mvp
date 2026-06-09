@@ -1,11 +1,10 @@
-// src/screens/BuscarScreen.js
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import db from '../database/database';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; 
+import db from '../database/database'; 
 
 const BuscarScreen = ({ navigation }) => {
-  const { usuario } = useAuth();  
+  const { usuario } = useAuth(); 
   const [treinos, setTreinos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalidadeFiltro, setModalidadeFiltro] = useState('Todos');
@@ -15,8 +14,9 @@ const BuscarScreen = ({ navigation }) => {
   const carregarTreinos = async (modalidade) => {
     try {
       setLoading(true);
+      
       let query = `
-        SELECT t.*, a.nome as academia_nome, a.tipo as academia_tipo, a.endereco as academia_endereco
+        SELECT t.*, a.nome as academia_nome, a.tipo as academia_tipo, a.endereco as academia_endereco_base
         FROM treinamentos t
         JOIN academias a ON t.academia_id = a.id
         WHERE t.vagas_disponiveis > 0
@@ -28,12 +28,12 @@ const BuscarScreen = ({ navigation }) => {
         params.push(modalidade);
       }
 
-      query += ' ORDER BY t.data ASC, t.horario ASC';
+      query += ' ORDER BY t.data ASC, t.horario ASC;';
 
       const resultados = await db.getAllAsync(query, params);
       setTreinos(resultados);
     } catch (error) {
-      console.error('Erro ao buscar treinamentos do SQLite:', error);
+      console.error('Erro ao buscar treinamentos dinâmicos do SQLite:', error);
       Alert.alert('Erro', 'Não foi possível carregar a grade de treinamentos.');
     } finally {
       setLoading(false);
@@ -46,22 +46,21 @@ const BuscarScreen = ({ navigation }) => {
 
   const handleReservar = async (idTreino, modalidade, academia) => {
     try {
-      // Verifica no SQLite usando o ID real do Atleta logado
       const atleta = await db.getFirstAsync('SELECT termos_aceitos FROM atletas WHERE id = ?', [usuario.idEspecifico]);
       
       if (!atleta || atleta.termos_aceitos === 0) {
         Alert.alert(
           'Termos Pendentes', 
-          'Antes de realizar sua primeira reserva, é obrigatório ler e aceitar os termos de participação.',
+          'Antes de realizar sua primeira reserva, é obrigatório ler e aceitar os termos de participação da plataforma.',
           [
             { text: 'Cancelar', style: 'cancel' },
-            { text: 'Ler Termos', onPress: () => navigation.navigate('Termos') }
+            { text: 'Ler Termos', onPress: () => navigation.navigate('Termos') } // Direciona para a tela de aceite
           ]
         );
-        return;
+        return; 
       }
     } catch (error) {
-      console.error('Erro ao checar termos:', error);
+      console.error('Erro ao verificar termos do atleta:', error);
       return;
     }
 
@@ -79,13 +78,16 @@ const BuscarScreen = ({ navigation }) => {
     try {
       await db.runAsync('UPDATE treinamentos SET vagas_disponiveis = vagas_disponiveis - 1 WHERE id = ?', [idTreino]);
       
-      // SALVA NO BANCO USANDO O ID REAL DELE!
       await db.runAsync(
         'INSERT INTO reservas (atleta_id, treinamento_id, status, data_reserva) VALUES (?, ?, ?, ?)',
         [usuario.idEspecifico, idTreino, 'pendente_pagamento', new Date().toISOString()]
       );
 
-      Alert.alert('Vaga Reservada! 🛒', 'O treino foi adicionado ao seu Carrinho.');
+      Alert.alert(
+        'Vaga Reservada! 🛒', 
+        'O treino foi adicionado ao seu Carrinho. Acesse a aba "Minhas Reservas" para finalizar o pagamento antes do cancelamento automático.'
+      );
+      
       carregarTreinos(modalidadeFiltro);
     } catch (error) {
       console.error(error);
@@ -98,12 +100,12 @@ const BuscarScreen = ({ navigation }) => {
       <View style={styles.cardHeader}>
         <Text style={styles.modalidade}>{item.modalidade}</Text>
         <Text style={[styles.badge, item.academia_tipo === 'filiada' ? styles.badgeFiliada : styles.badgeIndep]}>
-          {item.academia_tipo.toUpperCase()}
+          {(item.academia_tipo || 'Equipe').toUpperCase()}
         </Text>
       </View>
       
       <Text style={styles.academiaNome}>🏟️ {item.academia_nome}</Text>
-      <Text style={styles.endereco}>📍 {item.academia_endereco}</Text>
+      <Text style={styles.endereco}>📍 {item.endereco_treino || item.academia_endereco_base}</Text>
       
       <View style={styles.infoRow}>
         <Text style={styles.datetime}>📅 {item.data} às {item.horario}</Text>
@@ -129,7 +131,6 @@ const BuscarScreen = ({ navigation }) => {
       <Text style={styles.titulo}>Treinos Disponíveis</Text>
       <Text style={styles.subtitulo}>Encontre um Dojang parceiro no seu horário</Text>
 
-      {/* BARRA HORIZONTAL DE FILTROS */}
       <View style={styles.filtrosRow}>
         {filtros.map((item) => (
           <TouchableOpacity
@@ -144,7 +145,6 @@ const BuscarScreen = ({ navigation }) => {
         ))}
       </View>
 
-      {/* EXIBIÇÃO DE LOADING OU DA LISTA DE TREINOS */}
       {loading ? (
         <ActivityIndicator size="large" color="#1F3864" style={{ flex: 1 }} />
       ) : (
