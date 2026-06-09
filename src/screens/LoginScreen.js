@@ -10,11 +10,17 @@ const LoginScreen = ({ navigation }) => {
   const { login } = useAuth();
 
   const handleLogin = async () => {
-    if (!email || !senha) {
-      Alert.alert('Erro', 'Preencha todos os campos.');
+    if (!email.trim() || !senha.trim()) {
+      Alert.alert('Campos Vazios', 'Preencha o e-mail e a senha.');
       return;
     }
-    await login(email, senha);
+
+    try {
+      await login(email, senha);
+    } catch (error) {
+      // Exibe o erro "E-mail ou senha incorretos" disparado pelo SQLite
+      Alert.alert('Falha na Autenticação ❌', error.message);
+    }
   };
 
   return (

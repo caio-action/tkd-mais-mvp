@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import db from '../database/database';
+import { useAuth } from '../context/AuthContext';
 
 const BuscarScreen = ({ navigation }) => {
+  const { usuario } = useAuth();  
   const [treinos, setTreinos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalidadeFiltro, setModalidadeFiltro] = useState('Todos');
@@ -44,7 +46,8 @@ const BuscarScreen = ({ navigation }) => {
 
   const handleReservar = async (idTreino, modalidade, academia) => {
     try {
-      const atleta = await db.getFirstAsync('SELECT termos_aceitos FROM atletas WHERE id = 1');
+      // Verifica no SQLite usando o ID real do Atleta logado
+      const atleta = await db.getFirstAsync('SELECT termos_aceitos FROM atletas WHERE id = ?', [usuario.idEspecifico]);
       
       if (!atleta || atleta.termos_aceitos === 0) {
         Alert.alert(
@@ -52,10 +55,10 @@ const BuscarScreen = ({ navigation }) => {
           'Antes de realizar sua primeira reserva, é obrigatório ler e aceitar os termos de participação.',
           [
             { text: 'Cancelar', style: 'cancel' },
-            { text: 'Ler Termos', onPress: () => navigation.navigate('Termos') } // Vai pra tela de Termos
+            { text: 'Ler Termos', onPress: () => navigation.navigate('Termos') }
           ]
         );
-        return; 
+        return;
       }
     } catch (error) {
       console.error('Erro ao checar termos:', error);
@@ -72,20 +75,17 @@ const BuscarScreen = ({ navigation }) => {
     );
   };
 
- const processarReservaLocal = async (idTreino) => {
+  const processarReservaLocal = async (idTreino) => {
     try {
       await db.runAsync('UPDATE treinamentos SET vagas_disponiveis = vagas_disponiveis - 1 WHERE id = ?', [idTreino]);
       
+      // SALVA NO BANCO USANDO O ID REAL DELE!
       await db.runAsync(
         'INSERT INTO reservas (atleta_id, treinamento_id, status, data_reserva) VALUES (?, ?, ?, ?)',
-        [1, idTreino, 'pendente_pagamento', new Date().toISOString()] // Armazena data e hora exatas
+        [usuario.idEspecifico, idTreino, 'pendente_pagamento', new Date().toISOString()]
       );
 
-      Alert.alert(
-        'Vaga Reservada! 🛒', 
-        'O treino foi adicionado ao seu Carrinho. Você tem 5 minutos para realizar o pagamento na aba "Minhas Reservas", ou sua vaga será liberada.'
-      );
-      
+      Alert.alert('Vaga Reservada! 🛒', 'O treino foi adicionado ao seu Carrinho.');
       carregarTreinos(modalidadeFiltro);
     } catch (error) {
       console.error(error);

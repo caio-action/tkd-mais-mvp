@@ -6,26 +6,36 @@ import { useAuth } from '../context/AuthContext';
 const CadastroScreen = ({ navigation }) => {
   const { cadastro } = useAuth();
   
-  // Estados gerais
   const [tipo, setTipo] = useState('atleta'); // atleta, professor, ou equipe
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
 
-  // Estados específicos
   const [faixa, setFaixa] = useState(''); // Para atleta
   const [equipeOrigem, setEquipeOrigem] = useState(''); // Para atleta
   const [especialidade, setEspecialidade] = useState(''); // Para professor
 
   const handleCadastro = async () => {
-    if (!nome || !email || !senha) {
-      Alert.alert('Erro', 'Nome, e-mail e senha são obrigatórios.');
+    // 1. Validação de campos obrigatórios básicos
+    if (!nome.trim() || !email.trim() || !senha.trim()) {
+      Alert.alert('Campos Vazios', 'Por favor, preencha nome, e-mail e senha.');
+      return;
+    }
+
+    // 2. Validação de formato de E-mail
+    if (!email.includes('@') || email.length < 5) {
+      Alert.alert('E-mail Inválido', 'Insira um endereço de e-mail válido.');
+      return;
+    }
+
+    // 3. Validação de segurança da Senha
+    if (senha.length < 3) {
+      Alert.alert('Senha Fraca', 'A senha deve conter pelo menos 3 caracteres.');
       return;
     }
 
     const dados = { nome, email, senha, tipo };
     
-    // Adiciona os dados específicos dependendo do tipo
     if (tipo === 'atleta') {
       dados.faixa = faixa;
       dados.equipeOrigem = equipeOrigem;
@@ -33,7 +43,13 @@ const CadastroScreen = ({ navigation }) => {
       dados.especialidade = especialidade;
     }
 
-    await cadastro(dados);
+    try {
+      // Dispara a função do Contexto que salva no SQLite
+      await cadastro(dados);
+      Alert.alert('Sucesso! 🎉', `Conta de ${tipo} criada e sincronizada com o SQLite.`);
+    } catch (error) {
+      Alert.alert('Erro no Cadastro', error.message);
+    }
   };
 
   return (
@@ -65,12 +81,10 @@ const CadastroScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* CAMPOS GERAIS */}
       <TextInput style={styles.input} placeholder={tipo === 'equipe' ? "Nome da Academia/Equipe" : "Nome Completo"} value={nome} onChangeText={setNome} />
       <TextInput style={styles.input} placeholder="E-mail" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
       <TextInput style={styles.input} placeholder="Senha" value={senha} onChangeText={setSenha} secureTextEntry />
 
-      {/* CAMPOS ESPECÍFICOS: ATLETA */}
       {tipo === 'atleta' && (
         <>
           <TextInput style={styles.input} placeholder="Equipe de Origem" value={equipeOrigem} onChangeText={setEquipeOrigem} />
@@ -78,7 +92,6 @@ const CadastroScreen = ({ navigation }) => {
         </>
       )}
 
-      {/* CAMPOS ESPECÍFICOS: PROFESSOR */}
       {tipo === 'professor' && (
         <TextInput 
           style={styles.input} 

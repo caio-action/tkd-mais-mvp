@@ -3,8 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import db from '../database/database';
 import { simularPagamentoRemoto } from '../services/api'; // Importa nosso serviço Axios
+import { useAuth } from '../context/AuthContext';
 
-const MinhasReservasScreen = () => {
+const MinhasReservasScreen = ({ navigation }) => {
+  const { usuario } = useAuth();
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,9 +40,10 @@ const MinhasReservasScreen = () => {
         FROM reservas r
         JOIN treinamentos t ON r.treinamento_id = t.id
         JOIN academias a     ON t.academia_id = a.id
+        WHERE r.atleta_id = ?
         ORDER BY r.id DESC;
       `;
-      const listaAtualizada = await db.getAllAsync(queryGeral);
+      const listaAtualizada = await db.getAllAsync(queryGeral, [usuario.idEspecifico]);
       setReservas(listaAtualizada);
     } catch (error) {
       console.error(error);
