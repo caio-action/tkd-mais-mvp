@@ -49,7 +49,6 @@ const HomeScreen = ({ navigation }) => {
       
       <Text style={styles.academiaText}>🏟️ {item.academia_nome}</Text>
       
-      {/* CORREÇÃO: Mostra o endereço customizado do treino ou o endereço base da academia */}
       <Text style={styles.enderecoText}>📍 {item.endereco_treino || item.academia_endereco_base}</Text>
       
       <View style={styles.timeRow}>
