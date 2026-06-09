@@ -1,8 +1,7 @@
 // src/database/database.js
 import * as SQLite from 'expo-sqlite';
 
-const db = SQLite.openDatabaseSync('tkd_mais_v2.db');
-
+const db = SQLite.openDatabaseSync('tkd_mais_v3.db');
 export const initDatabase = async () => {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
