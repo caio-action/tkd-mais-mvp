@@ -1,0 +1,155 @@
+// src/screens/MinhasReservasScreen.js
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import db from '../database/database';
+import { simularPagamentoRemoto } from '../services/api'; // Importa nosso serviço Axios
+
+const MinhasReservasScreen = () => {
+  const [reservas, setReservas] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const checarEFiltrarReservas = async () => {
+    try {
+      setLoading(true);
+      
+      // 1. Busca todas as reservas pendentes para validar o tempo de 5 minutos
+      const pendentes = await db.getAllAsync("SELECT * FROM reservas WHERE status = 'pendente_pagamento';");
+      const agora = new Date();
+
+      for (const res of pendentes) {
+        const dataCriacao = new Date(res.data_reserva);
+        
+        // Se a data for inválida (reservas antigas feitas antes do formato completo), 
+        // ou se o tempo passou de 5 minutos, cancelamos imediatamente.
+        if (isNaN(dataCriacao.getTime())) {
+          // Trata registro antigo/antigo formato: cancela direto
+          await db.runAsync("UPDATE reservas SET status = 'cancelada_expirada' WHERE id = ?;", [res.id]);
+          await db.runAsync("UPDATE treinamentos SET vagas_disponiveis = vagas_disponiveis + 1 WHERE id = ?;", [res.treinamento_id]);
+          console.log(`[BD] Reserva antiga ${res.id} limpa e cancelada por formato incompatível.`);
+        } else {
+          const diferencaMinutos = (agora - dataCriacao) / (1000 * 60);
+          
+          if (diferencaMinutos > 5) {
+            await db.runAsync("UPDATE reservas SET status = 'cancelada_expirada' WHERE id = ?;", [res.id]);
+            await db.runAsync("UPDATE treinamentos SET vagas_disponiveis = vagas_disponiveis + 1 WHERE id = ?;", [res.treinamento_id]);
+            console.log(`[BD] Reserva ${res.id} cancelada automaticamente por estourar o tempo de 5min.`);
+          }
+        }
+      }
+
+      // 2. Busca a lista atualizada com os detalhes do treino e da academia para exibir na tela
+      const queryGeral = `
+        SELECT r.id as reserva_id, r.status, r.data_reserva, t.modalidade, t.horario, t.data as data_treino, a.nome as academia_nome
+        FROM reservas r
+        JOIN treinamentos t ON r.treinamento_id = t.id
+        JOIN academias a     ON t.academia_id = a.id
+        ORDER BY r.id DESC;
+      `;
+      const listaAtualizada = await db.getAllAsync(queryGeral);
+      setReservas(listaAtualizada);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checarEFiltrarReservas();
+  }, []);
+
+  const handleCheckoutCarrinho = async (reservaId) => {
+    try {
+      setLoading(true);
+      
+      const resultadoAPI = await simularPagamentoRemoto(reservaId, 30.00);
+      console.log('[AXIOS] Resposta recebida com sucesso da API:', resultadoAPI);
+
+      await db.runAsync("UPDATE reservas SET status = 'pago_confirmado' WHERE id = ?;", [reservaId]);
+      
+      Alert.alert('Pagamento Aprovado! 💳', 'Sua vaga está garantida no dojang. O Axios processou seu carrinho com sucesso.');
+      checarEFiltrarReservas(); // Atualiza a tela
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Erro no Gateway', 'O Axios não conseguiu se comunicar com o servidor de pagamento.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusEstilo = (status) => {
+    switch(status) {
+      case 'pago_confirmado': return { texto: 'Pago & Confirmado', cor: '#16a34a' };
+      case 'cancelada_expirada': return { texto: 'Cancelada: Tempo Excedido', cor: '#dc2626' };
+      default: return { texto: 'Aguardando Pagamento (Max 5min)', cor: '#d97706' };
+    }
+  };
+
+  const renderItemReserva = ({ item }) => {
+    const infoStatus = getStatusEstilo(item.status);
+    
+    return (
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <Text style={styles.modalidade}>{item.modalidade}</Text>
+          <Text style={[styles.statusText, { color: infoStatus.cor }]}>{infoStatus.texto}</Text>
+        </View>
+        <Text style={styles.academia}>🏟️ {item.academia_nome}</Text>
+        <Text style={styles.data}>📅 {item.data_treino} às {item.horario}</Text>
+
+        {item.status === 'pendente_pagamento' && (
+          <TouchableOpacity 
+            style={styles.botaoPagar} 
+            onPress={() => handleCheckoutCarrinho(item.reserva_id)}
+          >
+            <Text style={styles.textoBotaoPagar}>🛒 Finalizar Compra (R$ 30,00)</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.headerRow}>
+        <Text style={styles.titulo}>Minhas Reservas</Text>
+        <TouchableOpacity style={styles.btnAtualizar} onPress={checarEFiltrarReservas}>
+          <Text style={styles.txtBtn}>🔄 Atualizar Lista</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.subtitulo}>Acompanhe seus agendamentos e compras</Text>
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#1F3864" style={{ flex: 1 }} />
+      ) : (
+        <FlatList
+          data={reservas}
+          renderItem={renderItemReserva}
+          keyExtractor={(item) => item.reserva_id.toString()}
+          contentContainerStyle={{ padding: 16 }}
+          ListEmptyComponent={<Text style={styles.vazio}>Você não tem nenhuma atividade no seu histórico.</Text>}
+        />
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F5F7FA', paddingTop: 50 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16 },
+  titulo: { fontSize: 24, fontWeight: 'bold', color: '#1F3864' },
+  btnAtualizar: { backgroundColor: '#e2e8f0', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8 },
+  txtBtn: { fontSize: 12, fontWeight: 'bold', color: '#1F3864' },
+  subtitulo: { fontSize: 13, color: '#595959', paddingHorizontal: 16, marginBottom: 16 },
+  card: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 14, elevation: 2 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  modalidade: { fontSize: 17, fontWeight: 'bold', color: '#1F3864' },
+  statusText: { fontSize: 12, fontWeight: 'bold' },
+  academia: { fontSize: 14, color: '#475569', marginBottom: 2 },
+  data: { fontSize: 13, color: '#64748b', marginBottom: 12 },
+  botaoPagar: { backgroundColor: '#16a34a', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 4 },
+  textoBotaoPagar: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  vazio: { textAlign: 'center', color: '#64748b', marginTop: 40 }
+});
+
+export default MinhasReservasScreen;
