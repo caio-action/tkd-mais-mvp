@@ -16,19 +16,16 @@ const CadastroScreen = ({ navigation }) => {
   const [especialidade, setEspecialidade] = useState(''); // Para professor
 
   const handleCadastro = async () => {
-    // 1. Validação de campos obrigatórios básicos
     if (!nome.trim() || !email.trim() || !senha.trim()) {
       Alert.alert('Campos Vazios', 'Por favor, preencha nome, e-mail e senha.');
       return;
     }
 
-    // 2. Validação de formato de E-mail
     if (!email.includes('@') || email.length < 5) {
       Alert.alert('E-mail Inválido', 'Insira um endereço de e-mail válido.');
       return;
     }
 
-    // 3. Validação de segurança da Senha
     if (senha.length < 3) {
       Alert.alert('Senha Fraca', 'A senha deve conter pelo menos 3 caracteres.');
       return;
@@ -42,9 +39,11 @@ const CadastroScreen = ({ navigation }) => {
     } else if (tipo === 'professor') {
       dados.especialidade = especialidade;
     }
-
+    if (tipo === 'professor') {
+    dados.especialidade = 'Pendente';
+    dados.faixa = 'Preta 1º Dan'; 
+    }
     try {
-      // Dispara a função do Contexto que salva no SQLite
       await cadastro(dados);
       Alert.alert('Sucesso! 🎉', `Conta de ${tipo} criada e sincronizada com o SQLite.`);
     } catch (error) {
@@ -57,7 +56,6 @@ const CadastroScreen = ({ navigation }) => {
       <Text style={styles.logo}>Nova Conta</Text>
       <Text style={styles.subtitulo}>Junte-se à rede do TKD Time</Text>
 
-      {/* SELETOR DE PERFIL */}
       <View style={styles.seletorContainer}>
         <TouchableOpacity 
           style={[styles.aba, tipo === 'atleta' && styles.abaAtiva]} 

@@ -1,8 +1,7 @@
-// src/screens/MinhasReservasScreen.js
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import db from '../database/database';
-import { simularPagamentoRemoto } from '../services/api'; // Importa nosso serviço Axios
+import { simularPagamentoRemoto } from '../services/api'; 
 import { useAuth } from '../context/AuthContext';
 
 const MinhasReservasScreen = ({ navigation }) => {
@@ -36,10 +35,20 @@ const MinhasReservasScreen = ({ navigation }) => {
       }
 
       const queryGeral = `
-        SELECT r.id as reserva_id, r.status, r.data_reserva, t.modalidade, t.horario, t.data as data_treino, a.nome as academia_nome
+        SELECT 
+          r.id as reserva_id,
+          r.status,
+          r.data_reserva,
+          t.modalidade,
+          t.data as data_treino,
+          t.horario,
+          t.preco,
+          COALESCE(a.nome, 'Prof. ' || u.nome) as local_ou_professor
         FROM reservas r
-        JOIN treinamentos t ON r.treinamento_id = t.id
-        JOIN academias a     ON t.academia_id = a.id
+        JOIN treinamentos t    ON r.treinamento_id = t.id
+        LEFT JOIN academias a  ON t.academia_id = a.id
+        LEFT JOIN professores p ON t.professor_id = p.id
+        LEFT JOIN usuarios u   ON p.usuario_id = u.id
         WHERE r.atleta_id = ?
         ORDER BY r.id DESC;
       `;
@@ -56,8 +65,11 @@ const MinhasReservasScreen = ({ navigation }) => {
     checarEFiltrarReservas();
   }, []);
 
-  const handleCheckoutCarrinho = async (reservaId) => {
-    navigation.navigate('Pagamento', { reservaId: reservaId });
+  const handleCheckoutCarrinho = (reservaId, precoTreino) => {
+    navigation.navigate('Pagamento', { 
+      reservaId: reservaId,
+      valorTotal: precoTreino 
+    });
   };
 
   const getStatusEstilo = (status) => {
@@ -77,15 +89,15 @@ const MinhasReservasScreen = ({ navigation }) => {
           <Text style={styles.modalidade}>{item.modalidade}</Text>
           <Text style={[styles.statusText, { color: infoStatus.cor }]}>{infoStatus.texto}</Text>
         </View>
-        <Text style={styles.academia}>🏟️ {item.academia_nome}</Text>
+        <Text style={styles.academia}>🏟️ {item.local_ou_professor}</Text>
         <Text style={styles.data}>📅 {item.data_treino} às {item.horario}</Text>
 
         {item.status === 'pendente_pagamento' && (
           <TouchableOpacity 
             style={styles.botaoPagar} 
-            onPress={() => handleCheckoutCarrinho(item.reserva_id)}
+            onPress={() => handleCheckoutCarrinho(item.reserva_id, item.preco)}
           >
-            <Text style={styles.textoBotaoPagar}>🛒 Finalizar Compra (R$ 30,00)</Text>
+            <Text style={styles.textoBotaoPagar}>🛒 Finalizar Compra (R$ {item.preco ? item.preco.toFixed(2) : '30.00'})</Text>
           </TouchableOpacity>
         )}
       </View>

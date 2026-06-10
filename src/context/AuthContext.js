@@ -1,4 +1,3 @@
-// src/context/AuthContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import db from '../database/database';
@@ -13,9 +12,44 @@ export const AuthProvider = ({ children }) => {
     const carregarSessao = async () => {
       try {
         const userData = await AsyncStorage.getItem('@tkdtime:usuario');
-        if (userData) setUsuario(JSON.parse(userData));
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          
+          if (parsedUser && parsedUser.id) {
+            const sistemaUser = await db.getFirstAsync('SELECT tipo FROM usuarios WHERE id = ?', [parsedUser.id]);
+            
+            if (!sistemaUser) {
+              await AsyncStorage.removeItem('@tkdtime:usuario');
+              setUsuario(null);
+            } else {
+              if (parsedUser.tipo === 'professor') {
+                const prof = await db.getFirstAsync('SELECT especialidade FROM professores WHERE usuario_id = ?', [parsedUser.id]);
+                if (prof && prof.especialidade && prof.especialidade.trim().toLowerCase() === 'personal trainer') {
+                  parsedUser.isHomologado = true;
+                } else {
+                  parsedUser.isHomologado = false;
+                }
+              } else if (parsedUser.tipo === 'equipe') {
+                const aca = await db.getFirstAsync('SELECT id, ativa FROM academias WHERE usuario_id = ?', [parsedUser.id]);
+                if (aca && aca.ativa === 1) {
+                  parsedUser.isHomologado = true;
+                } else {
+                  parsedUser.isHomologado = false;
+                }
+              }
+              setUsuario(parsedUser);
+            }
+          } else {
+            await AsyncStorage.removeItem('@tkdtime:usuario');
+            setUsuario(null);
+          }
+        } else {
+          setUsuario(null);
+        }
       } catch (err) {
         console.error('Erro ao carregar sessão:', err);
+        await AsyncStorage.removeItem('@tkdtime:usuario');
+        setUsuario(null);
       } finally {
         setLoading(false);
       }
@@ -29,19 +63,26 @@ export const AuthProvider = ({ children }) => {
       if (!user) throw new Error('E-mail ou senha incorretos.');
 
       let idEspecifico = null;
-      let isHomologado = false; // NOVO: Flag de controle para a equipe
+      let isHomologado = false; 
 
       if (user.tipo === 'atleta') {
         const atleta = await db.getFirstAsync('SELECT id FROM atletas WHERE usuario_id = ?', [user.id]);
         idEspecifico = atleta ? atleta.id : null;
       } else if (user.tipo === 'professor') {
-        const prof = await db.getFirstAsync('SELECT id FROM professores WHERE usuario_id = ?', [user.id]);
-        idEspecifico = prof ? prof.id : null;
+        const prof = await db.getFirstAsync('SELECT id, especialidade FROM professores WHERE usuario_id = ?', [user.id]);
+        if (prof) {
+          idEspecifico = prof.id;
+          if (prof.especialidade && prof.especialidade.trim().toLowerCase() === 'personal trainer') {
+            isHomologado = true;
+          }
+        }
       } else if (user.tipo === 'equipe') {
-        const academia = await db.getFirstAsync('SELECT id FROM academias WHERE usuario_id = ?', [user.id]);
+        const academia = await db.getFirstAsync('SELECT id, ativa FROM academias WHERE usuario_id = ?', [user.id]);
         if (academia) {
           idEspecifico = academia.id;
-          isHomologado = true; 
+          if (academia.ativa === 1) {
+            isHomologado = true; 
+          }
         }
       }
 
@@ -67,6 +108,9 @@ export const AuthProvider = ({ children }) => {
       if (dadosUsuario.tipo === 'atleta') {
         const res = await db.runAsync('INSERT INTO atletas (usuario_id, faixa, equipe_origem, termos_aceitos) VALUES (?, ?, ?, 0);', [usuarioId, dadosUsuario.faixa, dadosUsuario.equipeOrigem]);
         idEspecifico = res.lastInsertRowId;
+      } else if (dadosUsuario.tipo === 'professor') {
+        const res = await db.runAsync('INSERT INTO professores (usuario_id, especialidade) VALUES (?, \'Pendente\');', [usuarioId]);
+        idEspecifico = res.lastInsertRowId;
       }
 
       const userData = { id: usuarioId, nome: dadosUsuario.nome, email: dadosUsuario.email, tipo: dadosUsuario.tipo, idEspecifico, isHomologado: false };
@@ -78,10 +122,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const registrarHomologacao = async (idAcademia) => {
-    const updatedUser = { ...usuario, idEspecifico: idAcademia, isHomologado: true };
-    await AsyncStorage.setItem('@tkdtime:usuario', JSON.stringify(updatedUser));
-    setUsuario(updatedUser);
+  const registrarHomologacao = async (idReg) => {
+    try {
+      await db.runAsync(
+        "UPDATE professores SET especialidade = 'Personal Trainer' WHERE id = ?;", 
+        [idReg]
+      );
+
+      const usuarioAtualizado = {
+        ...usuario,
+        idEspecifico: idReg,
+        isHomologado: true
+      };
+
+      await AsyncStorage.setItem('@tkdtime:usuario', JSON.stringify(usuarioAtualizado));
+      setUsuario(usuarioAtualizado);
+    } catch (error) {
+      console.error('Erro ao registrar homologação no contexto:', error);
+    }
   };
 
   const logout = async () => {

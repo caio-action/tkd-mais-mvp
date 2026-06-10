@@ -5,16 +5,15 @@ import { useAuth } from '../context/AuthContext';
 import db from '../database/database';
 
 const PainelAcademiaScreen = () => {
+  const [precoInput, setPrecoInput] = useState('35.00');
   const { usuario, logout } = useAuth();
   
-  // Estados do Criador de Atividades
   const [modalidade, setModalidade] = useState('Kyorugi'); 
   const [horario, setHorario] = useState('');
   const [dataTreino, setDataTreino] = useState('');
   const [vagas, setVagas] = useState('10');
   const [endereco, setEndereco] = useState('');
 
-  // Estados dos relatórios gerenciais
   const [atletasInscritos, setAtletasInscritos] = useState([]);
   const [financeiro, setFinanceiro] = useState({ bruto: 0, taxa: 0, liquido: 0 });
   const [loading, setLoading] = useState(true);
@@ -60,21 +59,21 @@ const PainelAcademiaScreen = () => {
     }
 
     try {
-      // CORREÇÃO DEFINITIVA: String SQL perfeitamente limpa e alinhada com as colunas da v5
       await db.runAsync(
-        `INSERT INTO treinamentos (academia_id, professor_id, modalidade, data, horario, duracao_min, capacidade, vagas_disponiveis, endereco_treino, descricao) 
-         VALUES (?, null, ?, ?, ?, 90, ?, ?, ?, ?);`,
-        [
-          usuario.idEspecifico, 
-          modalidade, 
-          dataTreino, 
-          horario, 
-          parseInt(vagas), 
-          parseInt(vagas), 
-          endereco, 
-          `Atividade de ${modalidade} aberta organizada e hospedada diretamente por ${usuario.nome}.`
-        ]
-      );
+  `INSERT INTO treinamentos (academia_id, professor_id, modalidade, data, horario, duracao_min, capacidade, vagas_disponiveis, endereco_treino, preco, descricao) 
+   VALUES (?, null, ?, ?, ?, 90, ?, ?, ?, ?, ?);`,
+  [
+    usuario.idEspecifico, 
+    modalidade, 
+    dataTreino, 
+    horario, 
+    parseInt(vagas), 
+    parseInt(vagas), 
+    endereco, 
+    parseFloat(precoInput.replace(',', '.')), // Captura o preço dinâmico da academia
+    `Atividade aberta organizada e hospedada diretamente por ${usuario.nome}.`
+  ]
+);
 
       Alert.alert('Sucesso! 🥋', `A atividade de ${modalidade} foi publicada e vinculada à sua Equipe/Academia.`);
       
@@ -124,6 +123,8 @@ const PainelAcademiaScreen = () => {
       </View>
 
       <View style={styles.cardForm}>
+        <Text style={styles.subLabel}>Valor da Inscrição por Atleta (R$)</Text>
+        <TextInput style={styles.input} keyboardType="numeric" placeholder="35.00" value={precoInput} onChangeText={setPrecoInput} />
         <Text style={styles.tituloSecao}>Criar Nova Atividade / Grade</Text>
         
         <Text style={styles.subLabel}>Selecione a Modalidade</Text>

@@ -1,4 +1,3 @@
-// src/screens/HomeScreen.js
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,10 +14,20 @@ const HomeScreen = ({ navigation }) => {
       setLoading(true);
       
       const query = `
-        SELECT r.id as reserva_id, t.modalidade, t.data as data_treino, t.horario, t.duracao_min, t.endereco_treino, a.nome as academia_nome, a.endereco as academia_endereco_base
+        SELECT 
+          r.id as reserva_id, 
+          t.modalidade, 
+          t.data as data_treino, 
+          t.horario, 
+          t.duracao_min, 
+          t.endereco_treino, 
+          COALESCE(a.nome, 'Prof. ' || u.nome) as academia_nome, 
+          a.endereco as academia_endereco_base
         FROM reservas r
-        JOIN treinamentos t ON r.treinamento_id = t.id
-        JOIN academias a     ON t.academia_id = a.id
+        JOIN treinamentos t    ON r.treinamento_id = t.id
+        LEFT JOIN academias a  ON t.academia_id = a.id
+        LEFT JOIN professores p ON t.professor_id = p.id
+        LEFT JOIN usuarios u   ON p.usuario_id = u.id
         WHERE r.status = 'pago_confirmado' AND r.atleta_id = ?
         ORDER BY t.data ASC, t.horario ASC;
       `;
@@ -49,7 +58,7 @@ const HomeScreen = ({ navigation }) => {
       
       <Text style={styles.academiaText}>🏟️ {item.academia_nome}</Text>
       
-      <Text style={styles.enderecoText}>📍 {item.endereco_treino || item.academia_endereco_base}</Text>
+      <Text style={styles.enderecoText}>📍 {item.endereco_treino || item.academia_endereco_base || 'Local combinado com o Personal'}</Text>
       
       <View style={styles.timeRow}>
         <Text style={styles.dateTimeText}>📅 {item.data_treino} às {item.horario}</Text>
@@ -107,7 +116,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F7FA' },
   headerBanner: { backgroundColor: '#1F3864', padding: 24, paddingTop: 60, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
   saudacao: { color: '#fff', fontSize: 26, fontWeight: 'bold' },
-  subtituloBanner: { color: '#BDD7EE', fontSize: 13, marginTop: 4, marginBottom: 16 },
+  subtituloBanner: { color: '#BDD7EE', fontSize: 13, marginTop: 4, Tree: 16, marginBottom: 16 },
   
   contadorContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: 12, borderRadius: 10 },
   numeroContador: { color: '#fff', fontSize: 28, fontWeight: 'bold', marginRight: 12 },

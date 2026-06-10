@@ -1,132 +1,94 @@
-// src/screens/PagamentoScreen.js
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { simularPagamentoRemoto } from '../services/api';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
 import db from '../database/database';
 
 const PagamentoScreen = ({ route, navigation }) => {
-  // Recebe o ID da reserva que foi passado pela tela anterior
-  const { reservaId } = route.params;
-
-  const [metodo, setMetodo] = useState('pix'); // 'pix' ou 'cartao'
+  const { reservaId, valorTotal } = route.params;
   const [cpf, setCpf] = useState('');
-  const [numeroCartao, setNumeroCartao] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [formaPagamento, setFormaPagamento] = useState('pix');
 
-  // Validação simples de CPF (Apenas garante 11 números)
-  const validarCPF = (textoCpf) => {
-    const apenasNumeros = textoCpf.replace(/\D/g, '');
-    return apenasNumeros.length === 11;
-  };
+  const formas = [
+    { id: 'pix', label: '⚡ PIX' },
+    { id: 'credito', label: '💳 Cartão de Crédito' },
+    { id: 'boleto', label: '📄 Boleto Bancário' }
+  ];
 
-  const processarPagamento = async () => {
-    if (!validarCPF(cpf)) {
-      Alert.alert('Dados Inválidos', 'Por favor, insira um CPF válido com 11 dígitos numéricos.');
-      return;
-    }
-
-    if (metodo === 'cartao' && numeroCartao.replace(/\D/g, '').length < 16) {
-      Alert.alert('Dados Inválidos', 'Insira um número de cartão de crédito válido (16 dígitos).');
+  const confirmarPagamento = async () => {
+    if (!cpf.trim() || cpf.length < 11) {
+      Alert.alert('Dados Incompletos', 'Por favor, insira um CPF válido para emissão do comprovante.');
       return;
     }
 
     try {
-      setLoading(true);
-      // O Axios dispara a requisição real
-      await simularPagamentoRemoto(reservaId, 30.00);
-
-      // Atualiza no banco de dados do celular
       await db.runAsync("UPDATE reservas SET status = 'pago_confirmado' WHERE id = ?;", [reservaId]);
-      
-      Alert.alert('Sucesso! 🥋', 'Pagamento aprovado. Sua credencial de treino está na aba Início.');
-      navigation.goBack(); // Volta para a tela de Minhas Reservas (que vai se auto-atualizar)
+      Alert.alert('Sucesso 🎉', 'Pagamento processado e vaga confirmada.', [
+        { text: 'OK', onPress: () => navigation.navigate('Dashboard') }
+      ]);
     } catch (error) {
-      Alert.alert('Erro', 'Ocorreu um problema de conexão com a operadora financeira.');
       console.error(error);
-    } finally {
-      setLoading(false);
+      Alert.alert('Erro', 'Falha ao confirmar o pagamento no banco.');
     }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      <ScrollView contentContainerStyle={{ padding: 24 }}>
-        <Text style={styles.titulo}>Finalizar Compra</Text>
-        <Text style={styles.subtitulo}>Valor total: R$ 30,00</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.titulo}>Finalizar Compra</Text>
+      
+      <View style={styles.card}>
+        <Text style={styles.label}>Reserva número: #{reservaId}</Text>
+        <Text style={styles.valor}>Total: R$ {valorTotal ? valorTotal.toFixed(2) : '0.00'}</Text>
+      </View>
 
-        <Text style={styles.label}>Método de Pagamento</Text>
-        <View style={styles.rowMetodo}>
-          <TouchableOpacity 
-            style={[styles.btnMetodo, metodo === 'pix' && styles.btnMetodoAtivo]} 
-            onPress={() => setMetodo('pix')}
-          >
-            <Text style={[styles.txtMetodo, metodo === 'pix' && styles.txtMetodoAtivo]}>PIX</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.btnMetodo, metodo === 'cartao' && styles.btnMetodoAtivo]} 
-            onPress={() => setMetodo('cartao')}
-          >
-            <Text style={[styles.txtMetodo, metodo === 'cartao' && styles.txtMetodoAtivo]}>Cartão de Crédito</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.label}>CPF do Titular</Text>
+      <View style={styles.cardForm}>
+        <Text style={styles.secaoTitulo}>Identificação do Comprador</Text>
         <TextInput 
           style={styles.input} 
-          placeholder="Apenas números (11 dígitos)" 
-          keyboardType="numeric" 
-          value={cpf} 
-          onChangeText={setCpf} 
-          maxLength={14} 
+          placeholder="Digite seu CPF (apenas números)" 
+          keyboardType="numeric"
+          maxLength={11}
+          value={cpf}
+          onChangeText={setCpf}
         />
 
-        {metodo === 'cartao' && (
-          <>
-            <Text style={styles.label}>Número do Cartão</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="0000 0000 0000 0000" 
-              keyboardType="numeric" 
-              value={numeroCartao} 
-              onChangeText={setNumeroCartao} 
-              maxLength={19} 
-            />
-          </>
-        )}
+        <Text style={[styles.secaoTitulo, { marginTop: 16 }]}>Forma de Pagamento</Text>
+        <View style={styles.formasRow}>
+          {formas.map((item) => (
+            <TouchableOpacity 
+              key={item.id} 
+              style={[styles.btnForma, formaPagamento === item.id && styles.btnFormaAtiva]}
+              onPress={() => setFormaPagamento(item.id)}
+            >
+              <Text style={[styles.txtForma, formaPagamento === item.id && styles.txtFormaAtiva]}>
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
-        <TouchableOpacity 
-          style={[styles.botaoConfirmar, loading && { opacity: 0.7 }]} 
-          onPress={processarPagamento} 
-          disabled={loading}
-        >
-          <Text style={styles.textoBotaoConfirmar}>
-            {loading ? 'Processando...' : 'Pagar R$ 30,00'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.botaoCancelar} onPress={() => navigation.goBack()} disabled={loading}>
-          <Text style={styles.textoBotaoCancelar}>Cancelar</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <TouchableOpacity style={styles.btnPagar} onPress={confirmarPagamento}>
+        <Text style={styles.btnText}>Confirmar e Pagar Agora</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA', paddingTop: 30 },
-  titulo: { fontSize: 24, fontWeight: 'bold', color: '#1F3864', marginBottom: 4 },
-  subtitulo: { fontSize: 16, color: '#16a34a', fontWeight: 'bold', marginBottom: 24 },
-  label: { fontSize: 14, fontWeight: 'bold', color: '#475569', marginBottom: 8, marginTop: 12 },
-  rowMetodo: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  btnMetodo: { flex: 1, padding: 14, borderRadius: 8, borderWidth: 1, borderColor: '#cbd5e1', alignItems: 'center', backgroundColor: '#fff' },
-  btnMetodoAtivo: { borderColor: '#1F3864', backgroundColor: '#e2e8f0' },
-  txtMetodo: { fontWeight: 'bold', color: '#64748b' },
-  txtMetodoAtivo: { color: '#1F3864' },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#cbd5e1', padding: 14, borderRadius: 8, fontSize: 16 },
-  botaoConfirmar: { backgroundColor: '#16a34a', padding: 16, borderRadius: 8, alignItems: 'center', marginTop: 32 },
-  textoBotaoConfirmar: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  botaoCancelar: { padding: 16, alignItems: 'center', marginTop: 8 },
-  textoBotaoCancelar: { color: '#ef4444', fontSize: 14, fontWeight: 'bold' }
+  container: { padding: 24, paddingTop: 60, backgroundColor: '#F5F7FA', flexGrow: 1, justifyContent: 'center' },
+  titulo: { fontSize: 24, fontWeight: 'bold', color: '#1F3864', marginBottom: 20, textAlign: 'center' },
+  card: { backgroundColor: '#fff', padding: 20, borderRadius: 12, elevation: 2, marginBottom: 16 },
+  label: { fontSize: 14, color: '#64748b', marginBottom: 8 },
+  valor: { fontSize: 24, fontWeight: 'bold', color: '#16a34a' },
+  cardForm: { backgroundColor: '#fff', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 24 },
+  secaoTitulo: { fontSize: 14, fontWeight: 'bold', color: '#334155', marginBottom: 10 },
+  input: { borderWidth: 1, borderColor: '#cbd5e1', padding: 12, borderRadius: 6, fontSize: 14, backgroundColor: '#fff', color: '#334155' },
+  formasRow: { flexDirection: 'column', gap: 10 },
+  btnForma: { padding: 14, borderRadius: 8, borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#f8fafc' },
+  btnFormaAtiva: { backgroundColor: '#1F3864', borderColor: '#1F3864' },
+  txtForma: { color: '#475569', fontWeight: '600', fontSize: 14 },
+  txtFormaAtiva: { color: '#fff' },
+  btnPagar: { backgroundColor: '#16a34a', padding: 16, borderRadius: 8, alignItems: 'center' },
+  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
 });
 
 export default PagamentoScreen;
