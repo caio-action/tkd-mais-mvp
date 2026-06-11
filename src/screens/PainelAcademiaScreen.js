@@ -22,7 +22,6 @@ const PainelAcademiaScreen = () => {
   const carregarDadosPainel = async () => {
     try {
       setLoading(true);
-      // CORREÇÃO: Passando o ID da academia logada para o Controller filtrar
       const dataPack = await ReservaController.obterFaturamentoAcademia(usuario.idEspecifico);
       setAtletasInscritos(dataPack.atletasInscritos);
       setFinanceiro(dataPack.financeiro);
