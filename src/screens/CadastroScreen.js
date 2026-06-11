@@ -54,7 +54,7 @@ const CadastroScreen = ({ navigation }) => {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.logo}>Nova Conta</Text>
-      <Text style={styles.subtitulo}>Junte-se à rede do TKD Time</Text>
+      <Text style={styles.subtitulo}>Junte-se à rede do TKD+MAIS</Text>
 
       <View style={styles.seletorContainer}>
         <TouchableOpacity 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView } from 'react-native';
-import db from '../database/database';
+import ReservaController from '../controllers/ReservaController';
+import AcademiaModel from '../models/AcademiaModel';
 
 const PagamentoScreen = ({ route, navigation }) => {
   const { reservaId, valorTotal } = route.params;
@@ -15,18 +16,26 @@ const PagamentoScreen = ({ route, navigation }) => {
 
   const confirmarPagamento = async () => {
     if (!cpf.trim() || cpf.length < 11) {
-      Alert.alert('Dados Incompletos', 'Por favor, insira um CPF válido para emissão do comprovante.');
+      Alert.alert('Dados Incompletos', 'Por favor, insira um CPF válido.');
       return;
     }
 
     try {
-      await db.runAsync("UPDATE reservas SET status = 'pago_confirmado' WHERE id = ?;", [reservaId]);
-      Alert.alert('Sucesso 🎉', 'Pagamento processado e vaga confirmada.', [
-        { text: 'OK', onPress: () => navigation.navigate('Dashboard') }
+      // Executa a quitação da reserva mudando o status para 'pago_confirmado'
+      await ReservaController.quitarReserva(reservaId);
+      
+      // Registra o log histórico da transação no banco relacional local
+      await AcademiaModel.registrarLogAtividade(1, 'RESERVA_PAGA', `Reserva #${reservaId} liquidada via ${formaPagamento.toUpperCase()}.`);
+
+      Alert.alert('Sucesso 🎉', 'Pagamento processado com sucesso.', [
+        { 
+          text: 'OK', 
+          // CORREÇÃO: Alinhado com o nome do TabNavigator configurado no AppNavigator
+          onPress: () => navigation.navigate('Dashboard') 
+        }
       ]);
     } catch (error) {
-      console.error(error);
-      Alert.alert('Erro', 'Falha ao confirmar o pagamento no banco.');
+      Alert.alert('Erro', 'Falha ao processar pagamento.');
     }
   };
 
@@ -41,26 +50,13 @@ const PagamentoScreen = ({ route, navigation }) => {
 
       <View style={styles.cardForm}>
         <Text style={styles.secaoTitulo}>Identificação do Comprador</Text>
-        <TextInput 
-          style={styles.input} 
-          placeholder="Digite seu CPF (apenas números)" 
-          keyboardType="numeric"
-          maxLength={11}
-          value={cpf}
-          onChangeText={setCpf}
-        />
+        <TextInput style={styles.input} placeholder="Digite seu CPF (apenas números)" keyboardType="numeric" maxLength={11} value={cpf} onChangeText={setCpf} />
 
         <Text style={[styles.secaoTitulo, { marginTop: 16 }]}>Forma de Pagamento</Text>
         <View style={styles.formasRow}>
           {formas.map((item) => (
-            <TouchableOpacity 
-              key={item.id} 
-              style={[styles.btnForma, formaPagamento === item.id && styles.btnFormaAtiva]}
-              onPress={() => setFormaPagamento(item.id)}
-            >
-              <Text style={[styles.txtForma, formaPagamento === item.id && styles.txtFormaAtiva]}>
-                {item.label}
-              </Text>
+            <TouchableOpacity key={item.id} style={[styles.btnForma, formaPagamento === item.id && styles.btnFormaAtiva]} onPress={() => setFormaPagamento(item.id)}>
+              <Text style={[styles.txtForma, formaPagamento === item.id && styles.txtFormaAtiva]}>{item.label}</Text>
             </TouchableOpacity>
           ))}
         </View>

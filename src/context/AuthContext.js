@@ -1,10 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import db from '../database/database';
+
+// COLOQUE AS CHAVES { db } AQUI NO IMPORT PARA ENCONTRAR OS MÉTODOS DIRETOS:
+import { db } from '../database/database';
+import { firestore } from '../database/firebaseConfig';
+import { collection, addDoc } from 'firebase/firestore';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
+  // Garantimos que ele começa estritamente limpo como null para forçar a rota de login
   const [usuario, setUsuario] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -24,18 +29,11 @@ export const AuthProvider = ({ children }) => {
             } else {
               if (parsedUser.tipo === 'professor') {
                 const prof = await db.getFirstAsync('SELECT especialidade FROM professores WHERE usuario_id = ?', [parsedUser.id]);
-                if (prof && prof.especialidade && prof.especialidade.trim().toLowerCase() === 'personal trainer') {
-                  parsedUser.isHomologado = true;
-                } else {
-                  parsedUser.isHomologado = false;
-                }
+                parsedUser.isHomologado = !!(prof && prof.especialidade && prof.especialidade.trim().toLowerCase() === 'personal trainer');
               } else if (parsedUser.tipo === 'equipe') {
                 const aca = await db.getFirstAsync('SELECT id, ativa FROM academias WHERE usuario_id = ?', [parsedUser.id]);
-                if (aca && aca.ativa === 1) {
-                  parsedUser.isHomologado = true;
-                } else {
-                  parsedUser.isHomologado = false;
-                }
+                parsedUser.isHomologado = !!(aca && aca.ativa === 1);
+                if (aca) parsedUser.idEspecifico = aca.id;
               }
               setUsuario(parsedUser);
             }
@@ -43,13 +41,9 @@ export const AuthProvider = ({ children }) => {
             await AsyncStorage.removeItem('@tkdtime:usuario');
             setUsuario(null);
           }
-        } else {
-          setUsuario(null);
         }
       } catch (err) {
         console.error('Erro ao carregar sessão:', err);
-        await AsyncStorage.removeItem('@tkdtime:usuario');
-        setUsuario(null);
       } finally {
         setLoading(false);
       }
@@ -72,17 +66,13 @@ export const AuthProvider = ({ children }) => {
         const prof = await db.getFirstAsync('SELECT id, especialidade FROM professores WHERE usuario_id = ?', [user.id]);
         if (prof) {
           idEspecifico = prof.id;
-          if (prof.especialidade && prof.especialidade.trim().toLowerCase() === 'personal trainer') {
-            isHomologado = true;
-          }
+          isHomologado = !!(prof.especialidade && prof.especialidade.trim().toLowerCase() === 'personal trainer');
         }
       } else if (user.tipo === 'equipe') {
         const academia = await db.getFirstAsync('SELECT id, ativa FROM academias WHERE usuario_id = ?', [user.id]);
         if (academia) {
           idEspecifico = academia.id;
-          if (academia.ativa === 1) {
-            isHomologado = true; 
-          }
+          isHomologado = !!(academia.ativa === 1); 
         }
       }
 
@@ -116,19 +106,21 @@ export const AuthProvider = ({ children }) => {
       const userData = { id: usuarioId, nome: dadosUsuario.nome, email: dadosUsuario.email, tipo: dadosUsuario.tipo, idEspecifico, isHomologado: false };
       await AsyncStorage.setItem('@tkdtime:usuario', JSON.stringify(userData));
       setUsuario(userData);
+
+      await addDoc(collection(firestore, "auditoria_cadastros"), {
+        usuarioId: usuarioId,
+        tipo: dadosUsuario.tipo,
+        timestamp: new Date().toISOString()
+      });
+
       return true;
     } catch (err) {
-      throw new Error('Este e-mail já está cadastrado ou erro local.');
+      throw new Error('Este e-mail já está cadastrado.');
     }
   };
 
   const registrarHomologacao = async (idReg) => {
     try {
-      await db.runAsync(
-        "UPDATE professores SET especialidade = 'Personal Trainer' WHERE id = ?;", 
-        [idReg]
-      );
-
       const usuarioAtualizado = {
         ...usuario,
         idEspecifico: idReg,
@@ -137,6 +129,14 @@ export const AuthProvider = ({ children }) => {
 
       await AsyncStorage.setItem('@tkdtime:usuario', JSON.stringify(usuarioAtualizado));
       setUsuario(usuarioAtualizado);
+
+      await addDoc(collection(firestore, "auditoria_homologacoes"), {
+        usuarioId: usuario.id,
+        nomeEmpreendimento: usuario.nome,
+        registroReferencia: idReg,
+        timestamp: new Date().toISOString()
+      });
+
     } catch (error) {
       console.error('Erro ao registrar homologação no contexto:', error);
     }

@@ -22,7 +22,7 @@ const HomeScreen = ({ navigation }) => {
           t.duracao_min, 
           t.endereco_treino, 
           COALESCE(a.nome, 'Prof. ' || u.nome) as academia_nome, 
-          a.endereco as academia_endereco_base
+          (a.logradouro || ', ' || a.numero) as academia_endereco_base
         FROM reservas r
         JOIN treinamentos t    ON r.treinamento_id = t.id
         LEFT JOIN academias a  ON t.academia_id = a.id

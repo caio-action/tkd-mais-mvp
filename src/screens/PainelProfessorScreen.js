@@ -1,15 +1,17 @@
 import React, { useState, useEffect, memo } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, Alert, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import db from '../database/database';
+import TreinamentoController from '../controllers/TreinamentoController';
+import ReservaController from '../controllers/ReservaController';
+import styles from '../styles/PainelProfessorStyles.js';
 
 const FormularioProfessor = memo(({
   modalidade,
   setModalidade,
   horario,
-  setHorario,
+  aplicarMascaraHorario,
   dataTreino,
-  setDataTreino,
+  aplicarMascaraData,
   endereco,
   setEndereco,
   precoInput,
@@ -28,7 +30,7 @@ const FormularioProfessor = memo(({
       </View>
 
       <View style={styles.cardFin}>
-        <Text style={styles.tituloSecao}>Faturamento Gerencial (Taxa 35%)</Text>
+        <Text style={styles.tituloSecao}>Faturamento Gerencial (Taxa 35% WORK)</Text>
         <View style={styles.finRow}><Text style={styles.lbl}>Faturamento Bruto:</Text><Text style={styles.val}>R$ {financeiro.bruto.toFixed(2)}</Text></View>
         <View style={styles.finRow}><Text style={styles.lbl}>Taxa Administrativa (35%):</Text><Text style={[styles.val, {color: '#f87171'}]}>- R$ {financeiro.taxa.toFixed(2)}</Text></View>
         <View style={styles.finRow}><Text style={styles.lblDestaque}>Líquido Disponível para Saque:</Text><Text style={styles.valLiquido}>R$ {financeiro.liquido.toFixed(2)}</Text></View>
@@ -45,8 +47,8 @@ const FormularioProfessor = memo(({
           ))}
         </View>
 
-        <TextInput style={styles.input} placeholder="Data (AAAA-MM-DD)" value={dataTreino} onChangeText={setDataTreino} />
-        <TextInput style={styles.input} placeholder="Horário (HH:MM)" value={horario} onChangeText={setHorario} />
+        <TextInput style={styles.input} placeholder="Data (DD/MM/AAAA)" keyboardType="numeric" maxLength={10} value={dataTreino} onChangeText={aplicarMascaraData} />
+        <TextInput style={styles.input} placeholder="Horário (HH:MM)" keyboardType="numeric" maxLength={5} value={horario} onChangeText={aplicarMascaraHorario} />
         <TextInput style={styles.input} placeholder="Local de Atendimento" value={endereco} onChangeText={setEndereco} />
         
         <Text style={styles.subLabel}>Valor da Sessão Individual (R$)</Text>
@@ -80,30 +82,9 @@ const PainelProfessorScreen = () => {
   const carregarPainelProfessor = async () => {
     try {
       setLoading(true);
-      
-      const queryAlunos = `
-        SELECT u.nome as aluno_nome, a.faixa, t.modalidade, t.data, t.horario, t.preco, r.status
-        FROM reservas r
-        JOIN atletas a       ON r.atleta_id = a.id
-        JOIN usuarios u       ON a.usuario_id = u.id
-        JOIN treinamentos t   ON r.treinamento_id = t.id
-        WHERE t.professor_id = ?
-        ORDER BY t.data ASC;
-      `;
-      const resposta = await db.getAllAsync(queryAlunos, [usuario.idEspecifico]);
-      setAlunosAgendados(resposta);
-
-      let totalBruto = 0;
-      resposta.forEach(item => {
-        if (item.status === 'pago_confirmado') {
-          totalBruto += item.preco;
-        }
-      });
-      
-      const totalTaxa = totalBruto * 0.35; 
-      const totalLiquido = totalBruto - totalTaxa;
-
-      setFinanceiro({ bruto: totalBruto, taxa: totalTaxa, liquido: totalLiquido });
+      const pacoteDados = await ReservaController.obterAlunosEFinanceiro(usuario.idEspecifico);
+      setAlunosAgendados(pacoteDados.listaAlunos);
+      setFinanceiro(pacoteDados.financeiro);
     } catch (error) {
       console.error(error);
     } finally {
@@ -115,40 +96,57 @@ const PainelProfessorScreen = () => {
     carregarPainelProfessor();
   }, []);
 
+  const aplicarMascaraData = (text) => {
+    const limpo = text.replace(/\D/g, '');
+    let formatado = limpo;
+    
+    if (limpo.length > 2) {
+      formatado = `${limpo.substring(0, 2)}/${limpo.substring(2, 4)}`;
+    }
+    if (limpo.length > 4) {
+      formatado += `/${limpo.substring(4, 8)}`;
+    }
+    setDataTreino(formatado);
+  };
+
+  const aplicarMascaraHorario = (text) => {
+    const limpo = text.replace(/\D/g, '');
+    let formatado = limpo;
+    
+    if (limpo.length > 2) {
+      formatado = `${limpo.substring(0, 2)}:${limpo.substring(2, 4)}`;
+    }
+    setHorario(formatado);
+  };
+
   const handlePublicarAulaParticular = async () => {
-    if (!horario.trim() || !dataTreino.trim() || !endereco.trim() || !precoInput.trim()) {
-      Alert.alert('Erro', 'Preencha todos os campos, incluindo o preço da aula particular.');
+    if (!dataTreino.includes('/') || dataTreino.length < 10) {
+      Alert.alert('Formato Inválido', 'Insira a data completa no formato DD/MM/AAAA.');
       return;
     }
 
     try {
-      const modalidadeComPrefixo = `Personal: ${modalidade}`;
-      const precoFinal = parseFloat(precoInput.replace(',', '.'));
+      // Conversão estruturada antes do Controller/Model
+      const [dia, mes, ano] = dataTreino.split('/');
+      const dataFormatadaParaSQL = `${ano}-${mes}-${dia}`;
 
-      await db.runAsync(
-        `INSERT INTO treinamentos (academia_id, professor_id, modalidade, data, horario, duracao_min, capacidade, vagas_disponiveis, endereco_treino, preco, descricao) 
-         VALUES (null, ?, ?, ?, ?, 60, 1, 1, ?, ?, ?);`,
-        [
-          usuario.idEspecifico,
-          modalidadeComPrefixo, 
-          dataTreino,
-          horario,
-          endereco,
-          precoFinal, 
-          `Atendimento individualizado de alta performance com o Personal Trainer ${usuario.nome}.`
-        ]
+      const retorno = await TreinamentoController.publicarAgendaParticular(
+        usuario.idEspecifico,
+        usuario.nome,
+        modalidade,
+        dataFormatadaParaSQL,
+        horario,
+        endereco,
+        precoInput
       );
 
-      Alert.alert('Aula Publicada! ⚡', `Sua agenda de ${modalidadeComPrefixo} no valor de R$ ${precoFinal.toFixed(2)} está aberta.`);
-      
+      Alert.alert('Aula Publicada! ⚡', `Sua agenda de ${retorno.modalidadeComPrefixo} no valor de R$ ${retorno.precoFinal.toFixed(2)} está aberta.`);
       setHorario('');
       setDataTreino('');
       setEndereco('');
-      
       carregarPainelProfessor();
     } catch (error) {
-      console.error(error);
-      Alert.alert('Erro', 'Não foi possível cadastrar a aula particular no SQLite.');
+      Alert.alert('Erro', error.message || 'Não foi possível cadastrar a aula particular.');
     }
   };
 
@@ -179,9 +177,9 @@ const PainelProfessorScreen = () => {
               modalidade={modalidade}
               setModalidade={setModalidade}
               horario={horario}
-              setHorario={setHorario}
+              aplicarMascaraHorario={aplicarMascaraHorario}
               dataTreino={dataTreino}
-              setDataTreino={setDataTreino}
+              aplicarMascaraData={aplicarMascaraData}
               endereco={endereco}
               setEndereco={setEndereco}
               precoInput={precoInput}
@@ -205,41 +203,5 @@ const PainelProfessorScreen = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA', paddingHorizontal: 16, paddingTop: 50 },
-  header: { marginBottom: 16 },
-  boasVindas: { fontSize: 24, fontWeight: 'bold', color: '#1F3864' },
-  nomeProf: { fontSize: 14, color: '#475569', fontWeight: '600' },
-  cardFin: { backgroundColor: '#1e293b', padding: 16, borderRadius: 12, marginBottom: 16 },
-  tituloSecao: { fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 10 },
-  finRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 4 },
-  lbl: { color: '#94a3b8', fontSize: 13 },
-  lblDestaque: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
-  val: { color: '#fff', fontWeight: 'bold' },
-  valLiquido: { color: '#4ade80', fontWeight: 'bold', fontSize: 15 },
-  cardForm: { backgroundColor: '#fff', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 20 },
-  subLabel: { fontSize: 12, fontWeight: 'bold', color: '#64748b', marginBottom: 4 },
-  rowAbas: { flexDirection: 'row', gap: 6, marginBottom: 12 },
-  aba: { flex: 1, padding: 10, borderRadius: 6, backgroundColor: '#f1f5f9', alignItems: 'center' },
-  abaAtiva: { backgroundColor: '#1F3864' },
-  txtAba: { color: '#475569', fontSize: 12, fontWeight: 'bold' },
-  txtAbaAtiva: { color: '#fff' },
-  input: { borderWidth: 1, borderColor: '#cbd5e1', padding: 10, borderRadius: 6, marginBottom: 10, fontSize: 14, backgroundColor: '#fff' },
-  btnPublicar: { backgroundColor: '#16a34a', padding: 14, borderRadius: 6, alignItems: 'center', marginTop: 6 },
-  txtBtn: { color: '#fff', fontWeight: 'bold' },
-  tituloLista: { fontSize: 16, fontWeight: 'bold', color: '#1F3864', marginBottom: 10 },
-  alunoCard: { backgroundColor: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 8 },
-  alunoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  alunoNome: { fontWeight: 'bold', color: '#334155', fontSize: 14 },
-  statusBadge: { fontSize: 10, fontWeight: 'bold', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  statusPago: { backgroundColor: '#d1fae5', color: '#065f46' },
-  statusPendente: { backgroundColor: '#fef3c7', color: '#92400e' },
-  alunoDetalhe: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  alunoPreco: { fontSize: 12, fontWeight: 'bold', color: '#16a34a', marginTop: 2 },
-  txtVazio: { fontStyle: 'italic', color: '#64748b', textAlign: 'center', marginTop: 8, fontSize: 13, paddingVertical: 10 },
-  btnSair: { backgroundColor: '#ef4444', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 20 },
-  txtSair: { color: '#fff', fontWeight: 'bold' }
-});
 
 export default PainelProfessorScreen;

@@ -1,0 +1,38 @@
+import { StyleSheet } from 'react-native';
+import { CORES, FONTES, ESPACAMENTOS } from './tema';
+
+export default StyleSheet.create({
+  container: { flex: 1, backgroundColor: CORES.fundo, paddingHorizontal: ESPACAMENTOS.medio, paddingTop: ESPACAMENTOS.paddingTelaSuperior },
+  header: { marginBottom: ESPACAMENTOS.medio },
+  boasVindas: { fontSize: FONTES.titulo, fontWeight: FONTES.pesoBold, color: CORES.primaria },
+  nomeProf: { fontSize: FONTES.subtitulo, color: CORES.textoMutado, fontWeight: FONTES.pesoSemibold },
+  cardFin: { backgroundColor: CORES.darkCard, padding: ESPACAMENTOS.medio, borderRadius: 12, marginBottom: ESPACAMENTOS.medio },
+  tituloSecao: { fontSize: 14, fontWeight: FONTES.pesoBold, color: '#fff', marginBottom: 10 },
+  finRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 4 },
+  lbl: { color: '#94a3b8', fontSize: FONTES.corpo },
+  lblDestaque: { color: '#fff', fontSize: FONTES.corpo, fontWeight: FONTES.pesoBold },
+  val: { color: '#fff', fontWeight: FONTES.pesoBold },
+  valLiquido: { color: CORES.sucesso, fontWeight: FONTES.pesoBold, fontSize: 15 },
+  cardForm: { backgroundColor: CORES.card, padding: ESPACAMENTOS.medio, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 20 },
+  subLabel: { fontSize: 12, fontWeight: FONTES.pesoBold, color: CORES.textoMutado, marginBottom: 4 },
+  rowAbas: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  aba: { flex: 1, padding: 10, borderRadius: 6, backgroundColor: '#f1f5f9', alignItems: 'center' },
+  abaAtiva: { backgroundColor: CORES.primaria },
+  txtAba: { color: CORES.textoEscuro, fontSize: 12, fontWeight: FONTES.pesoBold },
+  txtAbaAtiva: { color: '#fff' },
+  input: { borderWidth: 1, borderColor: '#cbd5e1', padding: 10, borderRadius: 6, marginBottom: 10, fontSize: 14, backgroundColor: '#fff' },
+  btnPublicar: { backgroundColor: CORES.sucesso, padding: 14, borderRadius: 6, alignItems: 'center', marginTop: 6 },
+  txtBtn: { color: '#fff', fontWeight: FONTES.pesoBold },
+  tituloLista: { fontSize: 16, fontWeight: FONTES.pesoBold, color: CORES.primaria, marginBottom: 10 },
+  alunoCard: { backgroundColor: CORES.card, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 8 },
+  alunoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  alunoNome: { fontWeight: FONTES.pesoBold, color: CORES.textoEscuro, fontSize: 14 },
+  statusBadge: { fontSize: 10, fontWeight: FONTES.pesoBold, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  statusPago: { backgroundColor: '#d1fae5', color: '#065f46' },
+  statusPendente: { backgroundColor: '#fef3c7', color: CORES.alerta },
+  alunoDetalhe: { fontSize: 12, color: CORES.textoMutado, marginTop: 2 },
+  alunoPreco: { fontSize: 12, fontWeight: FONTES.pesoBold, color: CORES.sucesso, marginTop: 2 },
+  txtVazio: { fontStyle: 'italic', color: CORES.textoMutado, textAlign: 'center', marginTop: 8, fontSize: 13, paddingVertical: 10 },
+  btnSair: { backgroundColor: CORES.erro, padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 20 },
+  txtSair: { color: '#fff', fontWeight: FONTES.pesoBold }
+});

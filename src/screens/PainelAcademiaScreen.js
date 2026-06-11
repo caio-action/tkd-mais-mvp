@@ -1,13 +1,12 @@
-// src/screens/PainelAcademiaScreen.js
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import db from '../database/database';
+import TreinamentoController from '../controllers/TreinamentoController';
+import ReservaController from '../controllers/ReservaController';
 
 const PainelAcademiaScreen = () => {
-  const [precoInput, setPrecoInput] = useState('35.00');
   const { usuario, logout } = useAuth();
-  
+  const [precoInput, setPrecoInput] = useState('35.00');
   const [modalidade, setModalidade] = useState('Kyorugi'); 
   const [horario, setHorario] = useState('');
   const [dataTreino, setDataTreino] = useState('');
@@ -23,26 +22,12 @@ const PainelAcademiaScreen = () => {
   const carregarDadosPainel = async () => {
     try {
       setLoading(true);
-
-      const queryInscritos = `
-        SELECT u.nome as atleta_nome, a.faixa, t.modalidade, t.data, t.horario, r.status
-        FROM reservas r
-        JOIN atletas a       ON r.atleta_id = a.id
-        JOIN usuarios u       ON a.usuario_id = u.id
-        JOIN treinamentos t   ON r.treinamento_id = t.id
-        WHERE r.status = 'pago_confirmado'
-        ORDER BY t.data ASC;
-      `;
-      const visitantes = await db.getAllAsync(queryInscritos);
-      setAtletasInscritos(visitantes);
-
-      const totalBruto = visitantes.length * 30.00;
-      const totalTaxa = totalBruto * 0.20; 
-      const totalLiquido = totalBruto - totalTaxa;
-
-      setFinanceiro({ bruto: totalBruto, taxa: totalTaxa, liquido: totalLiquido });
+      // CORREÇÃO: Passando o ID da academia logada para o Controller filtrar
+      const dataPack = await ReservaController.obterFaturamentoAcademia(usuario.idEspecifico);
+      setAtletasInscritos(dataPack.atletasInscritos);
+      setFinanceiro(dataPack.financeiro);
     } catch (error) {
-      console.error('Erro ao ler relatórios da academia:', error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -52,39 +37,49 @@ const PainelAcademiaScreen = () => {
     carregarDadosPainel();
   }, []);
 
+  const aplicarMascaraData = (text) => {
+    const limpo = text.replace(/\D/g, '');
+    let formatado = limpo;
+    
+    if (limpo.length > 2) {
+      formatado = `${limpo.substring(0, 2)}/${limpo.substring(2, 4)}`;
+    }
+    if (limpo.length > 4) {
+      formatado += `/${limpo.substring(4, 8)}`;
+    }
+    setDataTreino(formatado);
+  };
+
+  const aplicarMascaraHorario = (text) => {
+    const limpo = text.replace(/\D/g, '');
+    let formatado = limpo;
+    
+    if (limpo.length > 2) {
+      formatado = `${limpo.substring(0, 2)}:${limpo.substring(2, 4)}`;
+    }
+    setHorario(formatado);
+  };
+
   const handleCriarAtividade = async () => {
-    if (!horario.trim() || !dataTreino.trim() || !endereco.trim()) {
-      Alert.alert('Erro', 'Por favor, preencha horário, data e o endereço completo.');
+    if (!dataTreino.includes('/') || dataTreino.length < 10) {
+      Alert.alert('Formato Inválido', 'Insira a data completa no formato DD/MM/AAAA.');
       return;
     }
 
     try {
-      await db.runAsync(
-  `INSERT INTO treinamentos (academia_id, professor_id, modalidade, data, horario, duracao_min, capacidade, vagas_disponiveis, endereco_treino, preco, descricao) 
-   VALUES (?, null, ?, ?, ?, 90, ?, ?, ?, ?, ?);`,
-  [
-    usuario.idEspecifico, 
-    modalidade, 
-    dataTreino, 
-    horario, 
-    parseInt(vagas), 
-    parseInt(vagas), 
-    endereco, 
-    parseFloat(precoInput.replace(',', '.')), // Captura o preço dinâmico da academia
-    `Atividade aberta organizada e hospedada diretamente por ${usuario.nome}.`
-  ]
-);
+      const [dia, mes, ano] = dataTreino.split('/');
+      const dataFormatadaParaSQL = `${ano}-${mes}-${dia}`;
 
-      Alert.alert('Sucesso! 🥋', `A atividade de ${modalidade} foi publicada e vinculada à sua Equipe/Academia.`);
-      
+      await TreinamentoController.publicarGradeAcademia(
+        usuario.idEspecifico, modalidade, dataFormatadaParaSQL, horario, vagas, endereco, precoInput
+      );
+      Alert.alert('Sucesso! 🥋', 'Atividade da academia publicada na rede.');
       setHorario('');
       setDataTreino('');
       setEndereco('');
-      
       carregarDadosPainel(); 
     } catch (error) {
-      console.error(error);
-      Alert.alert('Erro', 'Não foi possível injetar sua atividade personalizada no SQLite.');
+      Alert.alert('Erro', error.message);
     }
   };
 
@@ -95,12 +90,12 @@ const PainelAcademiaScreen = () => {
         <Text style={styles.atletaFaixa}>Graduação: {item.faixa}</Text>
       </View>
       <Text style={styles.atletaTreino}>Atividade: {item.modalidade} ({item.data} às {item.horario})</Text>
-      <View style={styles.badgePago}><Text style={styles.txtBadge}>PAGAMENTO CONFIRMADO (R$ 30,00)</Text></View>
+      <View style={styles.badgePago}><Text style={styles.txtBadge}>PAGAMENTO CONFIRMADO</Text></View>
     </View>
   );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Text style={styles.boasVindas}>Painel do Gestor</Text>
         <Text style={styles.nomeAcademia}>🏢 {usuario?.nome}</Text>
@@ -108,33 +103,19 @@ const PainelAcademiaScreen = () => {
 
       <View style={styles.cardFinanceiro}>
         <Text style={styles.tituloSecao}>Painel de Lucros & Taxas</Text>
-        <View style={styles.finRow}>
-          <Text style={styles.finLabel}>Faturamento Bruto:</Text>
-          <Text style={styles.finValorBruto}>R$ {financeiro.bruto.toFixed(2)}</Text>
-        </View>
-        <View style={styles.finRow}>
-          <Text style={styles.finLabel}>Custo Plataforma (20%):</Text>
-          <Text style={styles.finValorTaxa}>- R$ {financeiro.taxa.toFixed(2)}</Text>
-        </View>
-        <View style={[styles.finRow, { borderTopWidth: 1, borderColor: '#e2e8f0', paddingTop: 8, marginTop: 4 }]}>
-          <Text style={styles.finLabelDestaque}>Repasse Líquido Disponível:</Text>
-          <Text style={styles.finValorLiquido}>R$ {financeiro.liquido.toFixed(2)}</Text>
-        </View>
+        <View style={styles.finRow}><Text style={styles.finLabel}>Faturamento Bruto:</Text><Text style={styles.finValorBruto}>R$ {financeiro.bruto.toFixed(2)}</Text></View>
+        <View style={styles.finRow}><Text style={styles.finLabel}>Custo Plataforma (20%):</Text><Text style={styles.finValorTaxa}>- R$ {financeiro.taxa.toFixed(2)}</Text></View>
+        <View style={[styles.finRow, { borderTopWidth: 1, borderColor: '#e2e8f0', paddingTop: 8, marginTop: 4 }]}><Text style={styles.finLabelDestaque}>Repasse Líquido:</Text><Text style={styles.finValorLiquido}>R$ {financeiro.liquido.toFixed(2)}</Text></View>
       </View>
 
       <View style={styles.cardForm}>
         <Text style={styles.subLabel}>Valor da Inscrição por Atleta (R$)</Text>
-        <TextInput style={styles.input} keyboardType="numeric" placeholder="35.00" value={precoInput} onChangeText={setPrecoInput} />
-        <Text style={styles.tituloSecao}>Criar Nova Atividade / Grade</Text>
+        <TextInput style={styles.input} keyboardType="numeric" value={precoInput} onChangeText={setPrecoInput} />
         
         <Text style={styles.subLabel}>Selecione a Modalidade</Text>
         <View style={styles.rowAbas}>
           {modalidadesDisponiveis.map((mod) => (
-            <TouchableOpacity 
-              key={mod} 
-              style={[styles.aba, modalidade === mod && styles.abaAtiva]} 
-              onPress={() => setModalidade(mod)}
-            >
+            <TouchableOpacity key={mod} style={[styles.aba, modalidade === mod && styles.abaAtiva]} onPress={() => setModalidade(mod)}>
               <Text style={[styles.txtAba, modalidade === mod && styles.txtAbaAtiva]}>{mod}</Text>
             </TouchableOpacity>
           ))}
@@ -142,12 +123,12 @@ const PainelAcademiaScreen = () => {
 
         <View style={styles.gridForm}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.subLabel}>Data (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} placeholder="2026-06-20" value={dataTreino} onChangeText={setDataTreino} />
+            <Text style={styles.subLabel}>Data (DD/MM/AAAA)</Text>
+            <TextInput style={styles.input} placeholder="20/06/2026" keyboardType="numeric" maxLength={10} value={dataTreino} onChangeText={aplicarMascaraData} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.subLabel}>Horário (HH:MM)</Text>
-            <TextInput style={styles.input} placeholder="19:00" value={horario} onChangeText={setHorario} />
+            <TextInput style={styles.input} placeholder="19:00" keyboardType="numeric" maxLength={5} value={horario} onChangeText={aplicarMascaraHorario} />
           </View>
         </View>
 
@@ -158,29 +139,16 @@ const PainelAcademiaScreen = () => {
         <TextInput style={styles.input} placeholder="Rua, Número, Bairro" value={endereco} onChangeText={setEndereco} />
 
         <TouchableOpacity style={styles.botaoCriar} onPress={handleCriarAtividade}>
-          <Text style={styles.txtBotaoCriar}>⚡ Publicar Atividade na Rede</Text>
+          <Text style={styles.txtBotaoCriar}>Publicar Atividade</Text>
         </TouchableOpacity>
       </View>
 
       <Text style={styles.tituloFaturamento}>Lista de Visitantes Confirmados ({atletasInscritos.length})</Text>
-      
-      {loading ? (
-        <ActivityIndicator size="small" color="#1F3864" />
-      ) : (
-        <FlatList
-          data={atletasInscritos}
-          renderItem={renderAtletaCard}
-          keyExtractor={(item, index) => index.toString()}
-          scrollEnabled={false} 
-          ListEmptyComponent={
-            <Text style={styles.vazioTxt}>Nenhum atleta externo agendado para seus dojangs no momento.</Text>
-          }
-        />
+      {loading ? <ActivityIndicator size="small" color="#1F3864" /> : (
+        <FlatList data={atletasInscritos} renderItem={renderAtletaCard} keyExtractor={(item, index) => index.toString()} scrollEnabled={false} ListEmptyComponent={<Text style={styles.vazioTxt}>Nenhum atleta agendado.</Text>} />
       )}
 
-      <TouchableOpacity style={styles.btnSair} onPress={logout}>
-        <Text style={styles.txtSair}>Sair do Painel Corporativo</Text>
-      </TouchableOpacity>
+      <TouchableOpacity style={styles.btnSair} onPress={logout}><Text style={styles.txtSair}>Sair do Painel</Text></TouchableOpacity>
     </ScrollView>
   );
 };
