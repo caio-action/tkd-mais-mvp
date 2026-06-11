@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// COLOQUE AS CHAVES { db } AQUI NO IMPORT PARA ENCONTRAR OS MÉTODOS DIRETOS:
 import { db } from '../database/database';
 import { firestore } from '../database/firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
